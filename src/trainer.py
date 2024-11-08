@@ -15,7 +15,7 @@ import wandb
 
 from agent import Agent
 from coroutines.collector import make_collector, NumToCollect
-from data import BatchSampler, collate_segments_to_batch, Dataset, DatasetTraverser, CSGOHdf5Dataset
+from data import BatchSampler, collate_segments_to_batch, Dataset, DatasetTraverser, MeleeHdf5Dataset
 from envs import make_atari_env, WorldModelEnv
 from utils import (
     broadcast_if_needed,
@@ -86,12 +86,11 @@ class Trainer(StateDictMixin):
             wandb.save(str(path_config))
             shutil.copytree(src=root_dir / "src", dst="./src")
             shutil.copytree(src=root_dir / "scripts", dst="./scripts")
-        
-        if cfg.env.train.id == "csgo":
-            assert cfg.env.path_data_low_res is not None and cfg.env.path_data_full_res is not None, "Make sure to download CSGO data and set the relevant paths in cfg.env"
+
+        if cfg.env.train.id == "melee":
             assert self._is_static_dataset
             num_actions = cfg.env.num_actions
-            dataset_full_res = CSGOHdf5Dataset(Path(cfg.env.path_data_full_res))
+            dataset_full_res = MeleeHdf5Dataset(Path(cfg.env.path_data_full_res))
         
         # Envs (atari only)
         else:

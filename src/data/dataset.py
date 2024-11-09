@@ -198,3 +198,87 @@ class CSGOHdf5Dataset(StateDictMixin, TorchDataset):
     def load_episode(self, episode_id: int) -> Episode:  # used by DatasetTraverser
         s = self[SegmentId(episode_id, 0, self._length_one_episode)]
         return Episode(s.obs, s.act, s.rew, s.end, s.trunc, s.info)
+
+class MeleeHdf5Dataset(StateDictMixin, TorchDataset):
+    def __init__(self, directory: Path) -> None:
+        super().__init__()
+        # Find all hdf5 files in directory and sort them
+        filenames = sorted(Path(directory).rglob("*.hdf5"), key=lambda x: int(x.stem.split("_")[-1]))
+        self._filenames = {f"{x.parent.name}/{x.name}": x for x in filenames}
+        self._length_one_episode = 1000  # Assuming same fixed length as CSGO for now
+        self.num_episodes = len(self._filenames)
+        self.num_steps = self._length_one_episode * self.num_episodes
+        self.lengths = np.array([self._length_one_episode] * self.num_episodes, dtype=np.int64)
+
+    def __len__(self) -> int:
+        return self.num_steps
+
+    def save_to_default_path(self) -> None:
+        pass
+
+    def __getitem__(self, segment_id: SegmentId) -> Segment:
+        # Validate segment bounds
+        assert segment_id.start < self._length_one_episode and segment_id.stop > 0 and segment_id.start < segment_id.stop
+
+        # Calculate padding lengths
+        pad_len_right = max(0, segment_id.stop - self._length_one_episode)
+        pad_len_left = max(0, -segment_id.start)
+
+        # Adjust start/stop indices
+        start = max(0, segment_id.start)
+        stop = min(self._length_one_episode, segment_id.stop)
+
+        # Create padding mask
+        mask_padding = torch.cat((
+            torch.zeros(pad_len_left),
+            torch.ones(stop - start),
+            torch.zeros(pad_len_right)
+        )).bool()
+
+        with h5py.File(self._filenames[segment_id.episode_id], "r") as f:
+            # Load frames
+            obs = torch.stack([
+                torch.tensor(f[f"frame_{i}_x"][:])
+                .flip(2)
+                .permute(2, 0, 1)
+                .div(255)
+                .mul(2)
+                .sub(1)
+                for i in range(start, stop)
+            ])
+
+            # Load both players' actions and concatenate
+            p1_actions = torch.tensor(np.array([f[f"frame_{i}_p1_y"][:] for i in range(start, stop)]))
+            p2_actions = torch.tensor(np.array([f[f"frame_{i}_p2_y"][:] for i in range(start, stop)]))
+            act = torch.cat([p1_actions, p2_actions], dim=-1)  # Combine P1 and P2 actions
+
+        def pad(x):
+            # Pad right
+            if pad_len_right > 0:
+                right = F.pad(x, [0 for _ in range(2 * x.ndim - 1)] + [pad_len_right])
+            else:
+                right = x
+            # Pad left
+            if pad_len_left > 0:
+                return F.pad(right, [0 for _ in range(2 * x.ndim - 2)] + [pad_len_left, 0])
+            return right
+
+        # Apply padding
+        obs = pad(obs)
+        act = pad(act)
+
+        # Create empty tensors for reward/end/truncation
+        rew = torch.zeros(obs.size(0))
+        end = torch.zeros(obs.size(0), dtype=torch.uint8)
+        trunc = torch.zeros(obs.size(0), dtype=torch.uint8)
+
+        return Segment(
+            obs, act, rew, end, trunc, mask_padding,
+            info={},
+            id=SegmentId(segment_id.episode_id, start, stop)
+        )
+
+    def load_episode(self, episode_id: int) -> Episode:
+        # Used by DatasetTraverser
+        s = self[SegmentId(episode_id, 0, self._length_one_episode)]
+        return Episode(s.obs, s.act, s.rew, s.end, s.trunc, s.info)

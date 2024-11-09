@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - env: csgo
-  - agent: csgo
+  - env: melee
+  - agent: melee
   - world_model_env: default
 
 hydra:
@@ -9,19 +9,17 @@ hydra:
     chdir: True
 
 wandb:
-  mode: disabled
-  project: null
-  entity: null
-  name: null
-  group: null
+  mode: online
+  project: melee_test
+  entity: kalomaze
+  name: kalomaze
+  group: kalomaze
   tags: null
   notes: null
 
 initialization:
   path_to_ckpt: null
   load_denoiser: True
-  load_rew_end_model: True
-  load_actor_critic: True
 
 common:
   devices: 0  # int, list of int, cpu, or all 
@@ -29,24 +27,8 @@ common:
   resume: False # do not modify, set by scripts/resume.sh only.
 
 checkpointing:
-  save_agent_every: 5
-  num_to_keep: 11  # number of checkpoints to keep, use null to disable
-
-collection:
-  train:
-    num_envs: 1
-    epsilon: 0.01
-    num_steps_total: 100000
-    first_epoch:
-      min: 5000
-      max: 10000  # null: no maximum
-      threshold_rew: 10
-    steps_per_epoch: 100
-  test:
-    num_envs: 1
-    num_episodes: 4
-    epsilon: 0.0
-    num_final_episodes: 100
+  save_agent_every: 100
+  num_to_keep: null  # number of checkpoints to keep, use null to disable
 
 static_dataset:
   path: ${env.path_data_low_res}
@@ -54,24 +36,24 @@ static_dataset:
 
 training:
   should: True
-  num_final_epochs: 1500
+  num_final_epochs: 1000
   cache_in_ram: False
-  num_workers_data_loaders: 4
+  num_workers_data_loaders: 1
   model_free: False # if True, turn off world_model training and RL in imagination
   compile_wm: False
 
 evaluation:
   should: True
-  every: 20
+  every: 100
 
 denoiser:
   training:
-    num_autoregressive_steps: 4
+    num_autoregressive_steps: 3
     start_after_epochs: 0
-    steps_first_epoch: 400
-    steps_per_epoch: 400
+    steps_first_epoch: 16
+    steps_per_epoch: 16
     sample_weights: null
-    batch_size: 64
+    batch_size: 1
     grad_acc_steps: 2
     lr_warmup_steps: 100
     max_grad_norm: 10.0
@@ -88,18 +70,4 @@ denoiser:
     sigma_min: 2e-3
     sigma_max: 20
 
-upsampler:
-  training:
-    num_autoregressive_steps: 1
-    start_after_epochs: 0
-    steps_first_epoch: 400
-    steps_per_epoch: 400
-    sample_weights: null
-    batch_size: 8
-    grad_acc_steps: 4
-    lr_warmup_steps: 100
-    max_grad_norm: 10.0
-
-  optimizer: ${denoiser.optimizer}
-  sigma_distribution: ${denoiser.sigma_distribution}
 

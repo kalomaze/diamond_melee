@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mouse-multiplier", type=int, default=10, help="Multiplication factor for the mouse movement.")
     parser.add_argument("--size-multiplier", type=int, default=2, help="Multiplication factor for the screen size.")
     parser.add_argument("--compile", action="store_true", help="Turn on model compilation.")
-    parser.add_argument("--fps", type=int, default=15, help="Frame rate.")
+    parser.add_argument("--fps", type=int, default=60, help="Frame rate.")
     parser.add_argument("--no-header", action="store_true")
     return parser.parse_args()
 

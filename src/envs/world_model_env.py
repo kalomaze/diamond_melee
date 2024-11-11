@@ -115,9 +115,8 @@ class WorldModelEnv:
     @torch.no_grad()
     def predict_next_obs(self) -> Tuple[Tensor, List[Tensor]]:
         
-        #obs = self.testing_full_obs
         #self.testing_i = self.testing_i + 1
-        #return obs[:,4 + self.testing_i, :, :, :], None
+        #return self.testing_full_obs[:,4 + self.testing_i, :, :, :], None
 
         #return self.testing_low_res[:,0,:,:,:], None
 
@@ -156,7 +155,7 @@ class WorldModelEnv:
             for _ in range(num_batches_to_preload):
                 d = next(spawn_dirs)
                 obs = torch.tensor(np.load(d / "x_coords.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
-                obs_full_res = torch.tensor(np.load(d / "low_res.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
+                obs_full_res = torch.tensor(np.load(d / "x_coords.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
                 act = torch.tensor(np.load(d / "p1_y_coords.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
 
                 p1_act = torch.tensor(np.load(d / "p1_y_coords.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
@@ -176,12 +175,15 @@ class WorldModelEnv:
                 obs = torch.einsum('bfhwc->bfchw', obs)
 
 
+                frameStart = 1500
+                framesContextSize = 4
+
                 self.testing_full_obs = obs
-                obs = obs[:,500:504,:,:,:]
+                obs = obs[:,frameStart:frameStart+framesContextSize,:,:,:]
                
-                next_act = torch.cat([p1_act[:,504:,:], p2_act[:,504:,:]], dim=-1)
+                next_act = torch.cat([p1_act[:,frameStart+framesContextSize:,:], p2_act[:,frameStart+framesContextSize:,:]], dim=-1)
                 
-                act = act[:,500:504,:]
+                act = act[:,frameStart:frameStart+framesContextSize,:]
 
                 obs_.extend(list(obs))
                 obs_full_res_.extend(list(obs_full_res))

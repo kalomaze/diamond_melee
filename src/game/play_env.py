@@ -94,11 +94,14 @@ class PlayEnv:
 
     @torch.no_grad()
     def step(self, melee_action: MeleeAction) -> Tuple[Tensor, Tensor, Tensor, Tensor, Dict[str, Any]]:
-        #if self.is_human_player:
-        action = encode_melee_action(melee_action, device=self.agent.device)
-        #else:
-        #    action = self.env.next_act[self.t - 1] if self.t > 0 else self.env.act_buffer[0, -1].clone()
-        #    melee_action = decode_melee_action(action.cpu())
+        if self.is_human_player:
+            action = encode_melee_action(melee_action, device=self.agent.device)
+            #hack, just copies p1 actions to p2
+            action = torch.cat([action, action], dim=-1)
+ 
+        else:
+            action = self.env.next_act[self.t - 1] if self.t > 0 else self.env.act_buffer[0, -1].clone()
+            melee_action = decode_melee_action(action.cpu())
         next_obs, rew, end, trunc, env_info = self.env.step(action)
 
         if not self.is_human_player and self.t == self.env.next_act.size(0):

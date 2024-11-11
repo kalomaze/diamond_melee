@@ -74,7 +74,6 @@ class WorldModelEnv:
 
     @torch.no_grad()
     def step(self, act: torch.LongTensor) -> StepOutput:
-        act = torch.cat([act, act], dim=-1)
 
         self.act_buffer[:, -1] = act
 
@@ -178,10 +177,11 @@ class WorldModelEnv:
 
 
                 self.testing_full_obs = obs
-                obs = obs[:,:4,:,:,:]
+                obs = obs[:,500:504,:,:,:]
                
-                next_act = act[:,4:,:]
-                act = act[:,:4,:]
+                next_act = torch.cat([p1_act[:,504:,:], p2_act[:,504:,:]], dim=-1)
+                
+                act = act[:,500:504,:]
 
                 obs_.extend(list(obs))
                 obs_full_res_.extend(list(obs_full_res))

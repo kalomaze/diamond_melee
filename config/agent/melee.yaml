@@ -10,17 +10,17 @@ denoiser:
     _target_: models.diffusion.InnerModelConfig
     img_channels: 3
     num_steps_conditioning: 4
-    cond_channels: 2048
+    cond_channels: 256
     depths:
     - 2
     - 2
     - 2
     - 2
     channels:
+    - 16
+    - 32
+    - 64
     - 128
-    - 256
-    - 512
-    - 1024
     attn_depths:
     - 0
     - 0

@@ -38,12 +38,14 @@ def prepare_play_mode(cfg: DictConfig, args: argparse.Namespace) -> PlayEnv:
 
     path_hf = Path(snapshot_download(repo_id="eloialonso/diamond", allow_patterns="csgo/*"))
 
-    path_ckpt = path_hf / "csgo/model/csgo.pt"
-    spawn_dir = path_hf / "csgo/spawn"
+    #path_ckpt = path_hf / "csgo/model/csgo.pt"
+    path_ckpt = "../agent_epoch_00044.pt"
+    spawn_dir = Path("../spawn")
 
     # Override config
-    cfg.agent = OmegaConf.load(path_hf / "csgo/config/agent/csgo.yaml")
-    cfg.env = OmegaConf.load(path_hf / "csgo/config/env/csgo.yaml")
+    cfg.agent = OmegaConf.load("./config/agent/melee.yaml")
+    cfg.env = OmegaConf.load("./config/env/melee.yaml")
+    
 
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
@@ -52,12 +54,11 @@ def prepare_play_mode(cfg: DictConfig, args: argparse.Namespace) -> PlayEnv:
     else:
         device = torch.device("cpu")
 
-    assert cfg.env.train.id == "csgo"
     num_actions = cfg.env.num_actions
 
     # Models
     agent = Agent(instantiate(cfg.agent, num_actions=num_actions)).to(device).eval()
-    agent.load(path_ckpt)
+    agent.load(path_ckpt, load_upsampler=False)
     
     # World model environment
     sl = cfg.agent.denoiser.inner_model.num_steps_conditioning

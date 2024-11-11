@@ -47,6 +47,7 @@ class DiffusionSampler:
                 prev_obs = self.denoiser.apply_noise(prev_obs, sigma_cond, sigma_offset_noise=0)
             else:
                 sigma_cond = None
+            
             denoised = self.denoiser.denoise(x, sigma, sigma_cond, prev_obs, prev_act)
             d = (x - denoised) / sigma_hat
             dt = next_sigma - sigma_hat

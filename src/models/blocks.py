@@ -6,6 +6,8 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import functional as F
+from flash_attn import flash_attn_func
+
 
 # Settings for GroupNorm and Attention
 
@@ -46,6 +48,7 @@ class AdaGroupNorm(nn.Module):
 
 
 # Self Attention
+# fa2 hax
 
 
 class SelfAttention2d(nn.Module):
@@ -53,6 +56,7 @@ class SelfAttention2d(nn.Module):
         super().__init__()
         self.n_head = max(1, in_channels // head_dim)
         assert in_channels % self.n_head == 0
+        
         self.norm = GroupNorm(in_channels)
         self.qkv_proj = Conv1x1(in_channels, in_channels * 3)
         self.out_proj = Conv1x1(in_channels, in_channels)
@@ -61,15 +65,39 @@ class SelfAttention2d(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         n, c, h, w = x.shape
+        orig_dtype = x.dtype
         x = self.norm(x)
+        
+        # Keep original QKV projection and reshaping
         qkv = self.qkv_proj(x)
         qkv = qkv.view(n, self.n_head * 3, c // self.n_head, h * w).transpose(2, 3).contiguous()
         q, k, v = [x for x in qkv.chunk(3, dim=1)]
-        att = (q @ k.transpose(-2, -1)) / math.sqrt(k.size(-1))
-        att = F.softmax(att, dim=-1)
-        y = att @ v
-        y = y.transpose(2, 3).reshape(n, c, h, w)
-        return x + self.out_proj(y)
+        
+        # Reshape for flash attention (batch, seqlen, nheads, head_dim)
+        q = q.transpose(1, 2).contiguous()
+        k = k.transpose(1, 2).contiguous()
+        v = v.transpose(1, 2).contiguous()
+        
+        # Convert to fp16/bf16 for flash attention
+        compute_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        q, k, v = q.to(compute_dtype), k.to(compute_dtype), v.to(compute_dtype)
+        
+        # Apply Flash Attention
+        context = flash_attn_func(
+            q, k, v,
+            dropout_p=0.0,
+            softmax_scale=None,  # Default to 1/sqrt(head_dim)
+            causal=False
+        )
+        
+        # Convert back to original dtype
+        context = context.to(orig_dtype)
+        
+        # Reshape back to 2D format
+        context = context.transpose(1, 2).contiguous()
+        context = context.view(n, c, h, w)
+        
+        return x + self.out_proj(context)
 
 
 # Embedding of the noise level

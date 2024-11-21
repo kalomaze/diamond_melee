@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from functools import partial
 import json
 from pathlib import Path
+import bitsandbytes as bnb
+
 import random
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -163,7 +165,7 @@ def configure_opt(model: nn.Module, lr: float, weight_decay: float, eps: float, 
         {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": weight_decay},
         {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
     ]
-    optimizer = AdamW(optim_groups, lr=lr, eps=eps)
+    optimizer = bnb.optim.AdamW8bit(optim_groups, lr=lr, eps=eps)
     return optimizer
 
 

@@ -11,6 +11,7 @@ torcheval==0.0.7
 tqdm==4.66.4
 wandb==0.17.0
 bitsandbytes
-flash-attn
+packaging
 ninja>=1.11.1
 wheel>=0.41.2
+flash-attn

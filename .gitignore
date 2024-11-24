@@ -8,6 +8,7 @@ experiments
 checkpoints
 saved_runs
 dataset
+*.swp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

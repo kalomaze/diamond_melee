@@ -8,8 +8,8 @@ import torch
 from torch import Tensor
 
 from agent import Agent
-from csgo.action_processing import CSGOAction, decode_csgo_action, encode_csgo_action, print_csgo_action
-from csgo.keymap import CSGO_KEYMAP
+from melee.action_processing import MeleeAction, decode_melee_action, encode_melee_action, print_melee_action
+from melee.keymap import MELEE_KEYMAP
 from data import Dataset, Episode
 from envs import WorldModelEnv
 
@@ -28,7 +28,7 @@ class PlayEnv:
         store_original_obs: bool,
     ) -> None:
         self.agent = agent
-        self.keymap = CSGO_KEYMAP
+        self.keymap = MELEE_KEYMAP
         self.recording_mode = recording_mode
         self.store_denoising_trajectory = store_denoising_trajectory
         self.store_original_obs = store_original_obs
@@ -93,19 +93,22 @@ class PlayEnv:
         return self.obs, None
 
     @torch.no_grad()
-    def step(self, csgo_action: CSGOAction) -> Tuple[Tensor, Tensor, Tensor, Tensor, Dict[str, Any]]:
+    def step(self, melee_action: MeleeAction) -> Tuple[Tensor, Tensor, Tensor, Tensor, Dict[str, Any]]:
         if self.is_human_player:
-            action = encode_csgo_action(csgo_action, device=self.agent.device)
+            action = encode_melee_action(melee_action, device=self.agent.device)
+            #hack, just copies p1 actions to p2
+            action = torch.cat([action, action], dim=-1)
+ 
         else:
             action = self.env.next_act[self.t - 1] if self.t > 0 else self.env.act_buffer[0, -1].clone()
-            csgo_action = decode_csgo_action(action.cpu())
+            melee_action = decode_melee_action(action.cpu())
         next_obs, rew, end, trunc, env_info = self.env.step(action)
 
         if not self.is_human_player and self.t == self.env.next_act.size(0):
             trunc[0] = 1
 
         data = OneStepData(self.obs, action, rew, end, trunc)
-        keys, mouse, clicks = print_csgo_action(csgo_action)
+        buttons, main_stick, c_stick, trigger = print_melee_action(melee_action)
         horizon = self.env.horizon if self.is_human_player else min(self.env.horizon, self.env.next_act.size(0))
         header = [
             [
@@ -114,9 +117,10 @@ class PlayEnv:
                 f"Timestep: {self.t + 1}",
                 f"Horizon : {horizon}",
                 "",
-                f"Keys  : {keys}",
-                f"Mouse : {mouse}",
-                f"Clicks: {clicks}",
+                f"Buttons  : {buttons}",
+                f"Stic : {main_stick}",
+                f"CStick: {c_stick}",
+                f"Trigger: {trigger}",
             ],
         ]
         info = {"header": header}

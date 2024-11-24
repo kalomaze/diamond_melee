@@ -4,10 +4,10 @@ import numpy as np
 import pygame
 from PIL import Image
 
-from csgo.action_processing import CSGOAction
+from melee.action_processing import MeleeAction
 from .dataset_env import DatasetEnv
 from .play_env import PlayEnv
-
+import matplotlib.pyplot as plt
 
 class Game:
     def __init__(
@@ -40,9 +40,9 @@ class Game:
         header_height = 150 if self.verbose else 0
         header_width = 540
         font_size = 16
-        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-        pygame.mouse.set_visible(False)
-        pygame.event.set_grab(True)
+        screen = pygame.display.set_mode((1000, 800))#, pygame.FULLSCREEN)
+        #pygame.mouse.set_visible(False)
+        #pygame.event.set_grab(True)
         clock = pygame.time.Clock()
         font = pygame.font.SysFont("mono", font_size)
         x_center, y_center = screen.get_rect().center
@@ -62,7 +62,7 @@ class Game:
 
         def draw_obs(obs, obs_low_res=None):
             assert obs.ndim == 4 and obs.size(0) == 1
-            img = Image.fromarray(obs[0].add(1).div(2).mul(255).byte().permute(1, 2, 0).cpu().numpy())
+            img = Image.fromarray(obs[0].add(1).div(2).mul(255).byte().permute(1, 2, 0).cpu().numpy(), mode="RGB")
             pygame_image = np.array(img.resize((self.width, self.height), resample=Image.BICUBIC)).transpose((1, 0, 2))
             surface = pygame.surfarray.make_surface(pygame_image)
             screen.blit(surface, (x_center - self.width // 2, y_center - self.height // 2))
@@ -78,7 +78,7 @@ class Game:
                 # screen.blit(surface, (x_center - w // 2, y_center + self.height // 2))
 
         def reset():
-            nonlocal obs, info, do_reset, ep_return, ep_length, keys_pressed, l_click, r_click
+            nonlocal obs, info, do_reset, ep_return, ep_length, keys_pressed, l_click, r_click, buttons, joy_x, joy_y, c_x, c_y, trigger
             obs, info = self.env.reset()
             pygame.event.clear()
             do_reset = False
@@ -86,8 +86,11 @@ class Game:
             ep_length = 0
             keys_pressed = []
             l_click = r_click = False
+            buttons = []
+            
 
-        obs, info, do_reset, ep_return, ep_length, keys_pressed, l_click, r_click = (None,) * 8
+
+        obs, info, do_reset, ep_return, ep_length, keys_pressed, l_click, r_click, buttons, joy_x, joy_y, c_x, c_y, trigger = (None,) * 14
 
         reset()
         do_wait = False
@@ -96,6 +99,7 @@ class Game:
         while not should_stop:
             do_one_step = False
             mouse_x, mouse_y = 0, 0
+            joy_x, joy_y, c_x, c_y, trigger = 0, 0, 0, 0, 0
             pygame.event.pump()
 
             for event in pygame.event.get():
@@ -159,8 +163,8 @@ class Game:
             if do_wait and not do_one_step:
                 continue
 
-            csgo_action = CSGOAction(keys_pressed, mouse_x, mouse_y, l_click, r_click)
-            next_obs, rew, end, trunc, info = self.env.step(csgo_action)
+            melee_action = MeleeAction(buttons, joy_x, joy_y, c_x, c_y, trigger)
+            next_obs, rew, end, trunc, info = self.env.step(melee_action)
 
             ep_return += rew.item()
             ep_length += 1

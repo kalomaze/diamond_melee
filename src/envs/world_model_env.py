@@ -13,6 +13,11 @@ from coroutines import coroutine
 from models.diffusion import Denoiser, DiffusionSampler, DiffusionSamplerConfig
 from models.rew_end_model import RewEndModel
 
+import matplotlib.pyplot as plt
+from PIL import Image
+import einops
+
+
 ResetOutput = Tuple[torch.FloatTensor, Dict[str, Any]]
 StepOutput = Tuple[Tensor, Tensor, Tensor, Tensor, Dict[str, Any]]
 InitialCondition = Tuple[Tensor, Tensor, Tuple[Tensor, Tensor]]
@@ -69,9 +74,11 @@ class WorldModelEnv:
 
     @torch.no_grad()
     def step(self, act: torch.LongTensor) -> StepOutput:
+
         self.act_buffer[:, -1] = act
 
         next_obs, denoising_trajectory = self.predict_next_obs()
+        
 
         if self.sampler_upsampling is not None:
             next_obs_full, denoising_trajectory_upsampling = self.upsample_next_obs(next_obs)
@@ -94,8 +101,8 @@ class WorldModelEnv:
             self.obs_full_res_buffer[:, -1] = next_obs_full
 
         info = {}
-        if self.return_denoising_trajectory:
-            info["denoising_trajectory"] = torch.stack(denoising_trajectory, dim=1)
+        #if self.return_denoising_trajectory:
+        #    info["denoising_trajectory"] = torch.stack(denoising_trajectory, dim=1)
             
         if self.sampler_upsampling is not None:
             info["obs_low_res"] = next_obs
@@ -107,6 +114,12 @@ class WorldModelEnv:
 
     @torch.no_grad()
     def predict_next_obs(self) -> Tuple[Tensor, List[Tensor]]:
+        
+        #self.testing_i = self.testing_i + 1
+        #return self.testing_full_obs[:,4 + self.testing_i, :, :, :], None
+
+        #return self.testing_low_res[:,0,:,:,:], None
+
         return self.sampler_next_obs.sample(self.obs_buffer[:, self.n_skip_next_obs:], self.act_buffer[:, self.n_skip_next_obs:])
 
     @torch.no_grad()
@@ -141,10 +154,36 @@ class WorldModelEnv:
             obs_, obs_full_res_, act_, next_act_, hx_, cx_ = [], [], [], [], [], []
             for _ in range(num_batches_to_preload):
                 d = next(spawn_dirs)
-                obs = torch.tensor(np.load(d / "low_res.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
-                obs_full_res = torch.tensor(np.load(d / "full_res.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
-                act = torch.tensor(np.load(d / "act.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
-                next_act = torch.tensor(np.load(d / "next_act.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
+                obs = torch.tensor(np.load(d / "x_coords.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
+                obs_full_res = torch.tensor(np.load(d / "x_coords.npy"), device=self.device).div(255).mul(2).sub(1).unsqueeze(0)
+                act = torch.tensor(np.load(d / "p1_y_coords.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
+
+                p1_act = torch.tensor(np.load(d / "p1_y_coords.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
+                p2_act = torch.tensor(np.load(d / "p2_y_coords.npy"), dtype=torch.long, device=self.device).unsqueeze(0)
+
+
+
+                self.testing_i = 0
+                self.testing_low_res = obs_full_res
+
+                # Concatenate along the last dimension
+                act = torch.cat([p1_act, p2_act], dim=-1)
+
+                b, f, h, w, c = obs.size()
+                #obs = obs.reshape(b, f, c, h, w)
+ 
+                obs = torch.einsum('bfhwc->bfchw', obs)
+
+
+                frameStart = 1500
+                framesContextSize = 4
+
+                self.testing_full_obs = obs
+                obs = obs[:,frameStart:frameStart+framesContextSize,:,:,:]
+               
+                next_act = torch.cat([p1_act[:,frameStart+framesContextSize:,:], p2_act[:,frameStart+framesContextSize:,:]], dim=-1)
+                
+                act = act[:,frameStart:frameStart+framesContextSize,:]
 
                 obs_.extend(list(obs))
                 obs_full_res_.extend(list(obs_full_res))
